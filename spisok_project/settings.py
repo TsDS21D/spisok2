@@ -7,17 +7,16 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Для продакшена SECRET_KEY должен быть в переменных окружения
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-development-key-change-in-production')
+# Используем переменную окружения или дефолтный ключ
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-production-key-change-me')
 
-DEBUG = False  # На продакшене обязательно False
+DEBUG = False
 
 ALLOWED_HOSTS = [
-    'www.beauty-print.ru', 
-    'beauty-print.ru', 
-    'localhost', 
+    'beauty-print.ru',
+    'www.beauty-print.ru',
+    'localhost',
     '127.0.0.1',
-    'ваш-ip-адрес',  # Добавьте IP адрес вашего VPS
 ]
 
 INSTALLED_APPS = [
@@ -77,12 +76,12 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Настройки безопасности для продакшена
+# Настройки безопасности
 SECURE_BROWSER_XSS_FILTER = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 X_FRAME_OPTIONS = 'DENY'
 
-# Если используете SSL (рекомендуется)
-# SECURE_SSL_REDIRECT = True
-# SESSION_COOKIE_SECURE = True
-# CSRF_COOKIE_SECURE = True
+# Если SSL настроен (рекомендуется)
+SECURE_SSL_REDIRECT = False
+SESSION_COOKIE_SECURE = False
+CSRF_COOKIE_SECURE = False

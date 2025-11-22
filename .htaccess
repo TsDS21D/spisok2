@@ -1,0 +1,3 @@
+PassengerEnabled On
+PassengerAppRoot /var/www/www-root/data/www/beauty-print.ru
+PassengerPython /var/www/www-root/data/www/beauty-print.ru/venv/bin/python
