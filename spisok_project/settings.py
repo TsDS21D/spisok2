@@ -5,16 +5,20 @@ Django settings for spisok_project project.
 from pathlib import Path
 import os
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Безопасность - лучше вынести в переменные окружения на продакшене
-SECRET_KEY = 'django-insecure-spisok-project-12345-change-in-production'
+# Для продакшена SECRET_KEY должен быть в переменных окружения
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-development-key-change-in-production')
 
-# Для разработки - True, для продакшена - False
-DEBUG = True
+DEBUG = False  # На продакшене обязательно False
 
-ALLOWED_HOSTS = ['www.beauty-print.ru', 'beauty-print.ru', 'localhost', '127.0.0.1']
+ALLOWED_HOSTS = [
+    'www.beauty-print.ru', 
+    'beauty-print.ru', 
+    'localhost', 
+    '127.0.0.1',
+    'ваш-ip-адрес',  # Добавьте IP адрес вашего VPS
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -70,19 +74,15 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-# Для разработки - дополнительные статические файлы
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static_dev'),
-]
+# Настройки безопасности для продакшена
+SECURE_BROWSER_XSS_FILTER = True
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'DENY'
 
-# Настройки для продакшена
-if not DEBUG:
-    SECRET_KEY = os.environ.get('SECRET_KEY', SECRET_KEY)
-    ALLOWED_HOSTS = ['www.beauty-print.ru', 'beauty-print.ru']
-    
-    # Дополнительные настройки безопасности для продакшена
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_BROWSER_XSS_FILTER = True
-    SECURE_CONTENT_TYPE_NOSNIFF = True
+# Если используете SSL (рекомендуется)
+# SECURE_SSL_REDIRECT = True
+# SESSION_COOKIE_SECURE = True
+# CSRF_COOKIE_SECURE = True
