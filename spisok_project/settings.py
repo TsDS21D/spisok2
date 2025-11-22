@@ -7,18 +7,13 @@ import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# Используем переменную окружения или дефолтный ключ
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-production-key-change-me')
+SECRET_KEY = 'django-insecure-development-key-change-in-production'
 
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = [
-    'beauty-print.ru',
-    'www.beauty-print.ru',
-    'localhost',
-    '127.0.0.1',
-]
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'beauty-print.ru', 'www.beauty-print.ru']
 
+# Добавляем Channels в установленные приложения
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -26,6 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'channels',  # Добавляем Django Channels
     'spisok_app',
 ]
 
@@ -57,7 +53,15 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'spisok_project.wsgi.application'
+# Настройка ASGI для Channels
+ASGI_APPLICATION = 'spisok_project.asgi.application'
+
+# Настройка channel layers (для локальной разработки используем InMemory)
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
+}
 
 DATABASES = {
     'default': {
@@ -72,16 +76,11 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static')
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+STATICFILES_DIRS = [
+    os.path.join(BASE_DIR, 'static_dev'),
+]
 
-# Настройки безопасности
-SECURE_BROWSER_XSS_FILTER = True
-SECURE_CONTENT_TYPE_NOSNIFF = True
-X_FRAME_OPTIONS = 'DENY'
-
-# Если SSL настроен (рекомендуется)
+# Отключаем HTTPS для разработки
 SECURE_SSL_REDIRECT = False
 SESSION_COOKIE_SECURE = False
 CSRF_COOKIE_SECURE = False

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Список имен</title>
+    <title>Реактивный список имен</title>
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,6 +22,23 @@
             color: #333;
             text-align: center;
             margin-bottom: 30px;
+        }
+        .connection-status {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
         .form-group {
             margin-bottom: 20px;
@@ -47,9 +64,14 @@
             cursor: pointer;
             font-size: 16px;
             width: 100%;
+            transition: background-color 0.3s;
         }
-        button:hover {
+        button:hover:not(:disabled) {
             background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
         }
         .names-list {
             margin-top: 40px;
@@ -58,9 +80,14 @@
             padding: 15px;
             border-bottom: 1px solid #eee;
             font-size: 16px;
+            transition: background-color 0.3s;
         }
         .name-item:last-child {
             border-bottom: none;
+        }
+        .name-item.new {
+            background-color: #d4edda;
+            animation: highlight 2s ease-out;
         }
         .empty-message {
             text-align: center;
@@ -68,34 +95,235 @@
             font-style: italic;
             padding: 20px;
         }
+        @keyframes highlight {
+            0% { background-color: #d4edda; }
+            100% { background-color: transparent; }
+        }
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📝 Добавление имен в этот наш списочный список</h1>
+        <h1>📝 Реактивный список имен</h1>
         
-        <form method="post">
+        <div id="connectionStatus" class="connection-status disconnected">
+            🔄 Подключение к серверу...
+        </div>
+        
+        <form method="post" id="nameForm">
             {% csrf_token %}
             <div class="form-group">
-                {{ form.name }}
+                <input type="text" name="name" class="form-control" 
+                       placeholder="Введите имя здесь" 
+                       style="width: 100%; padding: 12px; font-size: 16px;" 
+                       maxlength="100" required id="id_name">
             </div>
-            <button type="submit">✅ Добавить имя</button>
+            <button type="submit" id="submitBtn">✅ Добавить имя</button>
         </form>
         
         <div class="names-list">
-            <h2>📋 Список имен:</h2>
-            {% if names_list %}
-                {% for entry in names_list %}
-                    <div class="name-item">
-                        <strong>{{ entry.order_number }}.</strong> {{ entry.name }}
+            <h2>📋 Список имен: <span id="namesCount">0</span></h2>
+            <div id="names-container">
+                {% if names_list %}
+                    {% for entry in names_list %}
+                        <div class="name-item" data-id="{{ entry.id }}">
+                            <strong>{{ entry.order_number }}.</strong> {{ entry.name }}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-message">
+                        Список пока пуст. Добавьте первое имя!
                     </div>
-                {% endfor %}
-            {% else %}
-                <div class="empty-message">
-                    Список пока пуст. Добавьте первое имя!
-                </div>
-            {% endif %}
+                {% endif %}
+            </div>
         </div>
     </div>
+
+    <script>
+        class ReactiveNamesApp {
+            constructor() {
+                this.socket = null;
+                this.isConnected = false;
+                this.reconnectAttempts = 0;
+                this.maxReconnectAttempts = 5;
+                this.reconnectDelay = 1000;
+                
+                this.init();
+            }
+            
+            init() {
+                this.connectWebSocket();
+                this.setupEventListeners();
+                this.updateNamesCount();
+            }
+            
+            connectWebSocket() {
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/names/`;
+                
+                try {
+                    this.socket = new WebSocket(wsUrl);
+                    
+                    this.socket.onopen = () => {
+                        console.log('WebSocket подключен');
+                        this.isConnected = true;
+                        this.reconnectAttempts = 0;
+                        this.updateConnectionStatus('connected', '✅ Подключено к серверу (обновления в реальном времени)');
+                    };
+                    
+                    this.socket.onmessage = (event) => {
+                        const data = JSON.parse(event.data);
+                        this.handleWebSocketMessage(data);
+                    };
+                    
+                    this.socket.onclose = (event) => {
+                        console.log('WebSocket отключен', event);
+                        this.isConnected = false;
+                        this.updateConnectionStatus('disconnected', '🔴 Отключено от сервера');
+                        
+                        // Пытаемся переподключиться
+                        if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                            setTimeout(() => {
+                                this.reconnectAttempts++;
+                                this.connectWebSocket();
+                            }, this.reconnectDelay * this.reconnectAttempts);
+                        }
+                    };
+                    
+                    this.socket.onerror = (error) => {
+                        console.error('WebSocket ошибка:', error);
+                        this.updateConnectionStatus('disconnected', '❌ Ошибка подключения');
+                    };
+                    
+                } catch (error) {
+                    console.error('Ошибка создания WebSocket:', error);
+                }
+            }
+            
+            handleWebSocketMessage(data) {
+                switch (data.type) {
+                    case 'initial_data':
+                        this.renderNamesList(data.names);
+                        break;
+                    case 'names_updated':
+                        this.renderNamesList(data.names);
+                        this.highlightNewNames();
+                        break;
+                    default:
+                        console.log('Неизвестный тип сообщения:', data);
+                }
+            }
+            
+            setupEventListeners() {
+                const form = document.getElementById('nameForm');
+                const nameInput = document.getElementById('id_name');
+                const submitBtn = document.getElementById('submitBtn');
+                
+                form.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    if (!nameInput.value.trim()) return;
+                    
+                    // Показываем состояние загрузки
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = '⏳ Добавляем...';
+                    form.classList.add('loading');
+                    
+                    try {
+                        const response = await fetch('/', {
+                            method: 'POST',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                            },
+                            body: new FormData(form)
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            if (result.success) {
+                                // Очищаем поле ввода
+                                nameInput.value = '';
+                                
+                                // Уведомляем WebSocket о новом имени
+                                if (this.isConnected && this.socket) {
+                                    this.socket.send(JSON.stringify({
+                                        type: 'new_name_added'
+                                    }));
+                                }
+                            }
+                        } else {
+                            throw new Error('Ошибка сервера');
+                        }
+                    } catch (error) {
+                        console.error('Ошибка при добавлении имени:', error);
+                        alert('Ошибка при добавлении имени. Попробуйте еще раз.');
+                    } finally {
+                        // Восстанавливаем кнопку
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = '✅ Добавить имя';
+                        form.classList.remove('loading');
+                    }
+                });
+            }
+            
+            renderNamesList(names) {
+                const container = document.getElementById('names-container');
+                
+                if (names.length === 0) {
+                    container.innerHTML = '<div class="empty-message">Список пока пуст. Добавьте первое имя!</div>';
+                } else {
+                    container.innerHTML = names.map(name => `
+                        <div class="name-item" data-id="${name.id}">
+                            <strong>${name.order_number}.</strong> ${this.escapeHtml(name.name)}
+                        </div>
+                    `).join('');
+                }
+                
+                this.updateNamesCount();
+            }
+            
+            highlightNewNames() {
+                const nameItems = document.querySelectorAll('.name-item');
+                if (nameItems.length > 0) {
+                    const lastItem = nameItems[nameItems.length - 1];
+                    lastItem.classList.add('new');
+                    
+                    // Убираем подсветку через 2 секунды
+                    setTimeout(() => {
+                        lastItem.classList.remove('new');
+                    }, 2000);
+                }
+            }
+            
+            updateNamesCount() {
+                const count = document.querySelectorAll('.name-item').length;
+                document.getElementById('namesCount').textContent = `(${count})`;
+            }
+            
+            updateConnectionStatus(status, message) {
+                const statusElement = document.getElementById('connectionStatus');
+                statusElement.className = `connection-status ${status}`;
+                statusElement.textContent = message;
+            }
+            
+            escapeHtml(unsafe) {
+                return unsafe
+                    .replace(/&/g, "&amp;")
+                    .replace(/</g, "&lt;")
+                    .replace(/>/g, "&gt;")
+                    .replace(/"/g, "&quot;")
+                    .replace(/'/g, "&#039;");
+            }
+        }
+        
+        // Инициализация приложения когда DOM загружен
+        document.addEventListener('DOMContentLoaded', () => {
+            new ReactiveNamesApp();
+        });
+    </script>
 </body>
 </html>
